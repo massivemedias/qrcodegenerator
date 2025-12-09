@@ -84,15 +84,6 @@
       radial-gradient(ellipse at 80% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
       radial-gradient(ellipse at 50% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 70%),
       linear-gradient(135deg, #0c0c14 0%, #1a1a2e 30%, #16213e 50%, #1e1e3f 70%, #0c0c14 100%);
-    background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
-    animation: dark-gradient-shift 20s ease infinite;
-  }
-  
-  @keyframes dark-gradient-shift {
-    0%, 100% { background-position: 0% 0%, 100% 100%, 50% 50%, 0% 50%; }
-    25% { background-position: 100% 0%, 0% 100%, 50% 50%, 50% 50%; }
-    50% { background-position: 100% 100%, 0% 0%, 50% 50%, 100% 50%; }
-    75% { background-position: 0% 100%, 100% 0%, 50% 50%, 50% 50%; }
   }
   
   .gradient-text {
@@ -105,7 +96,7 @@
   }
   
   .dark-mode .pattern-dots {
-    background-image: radial-gradient(circle at 1px 1px, rgba(139, 92, 246, 0.12) 1px, transparent 0);
+    background-image: none;
   }
   
   /* Ombres stylisées pour le mode sombre */
