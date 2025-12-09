@@ -21,6 +21,14 @@
            transition-all duration-300 text-gray-700 placeholder-gray-400;
   }
   
+  .dark-mode .input-field {
+    @apply border-gray-600 bg-gray-800/80 text-gray-100 placeholder-gray-500;
+  }
+  
+  .dark-mode .input-field:focus {
+    @apply border-primary-400 ring-primary-400/20;
+  }
+  
   .btn-primary {
     @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold
            bg-gradient-to-r from-primary-600 to-accent-600 text-white
@@ -70,6 +78,10 @@
     background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6B8DD6 100%);
   }
   
+  .gradient-bg-dark {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  }
+  
   .gradient-text {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-accent-600;
   }
@@ -77,6 +89,10 @@
   .pattern-dots {
     background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0);
     background-size: 24px 24px;
+  }
+  
+  .dark-mode .pattern-dots {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0);
   }
   
   .glass {
