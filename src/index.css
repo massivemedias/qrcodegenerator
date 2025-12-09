@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: 'Outfit', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white/80 backdrop-blur-sm
+           focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 focus:outline-none
+           transition-all duration-300 text-gray-700 placeholder-gray-400;
+  }
+  
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold
+           bg-gradient-to-r from-primary-600 to-accent-600 text-white
+           hover:from-primary-700 hover:to-accent-700
+           active:scale-[0.98] transition-all duration-300
+           shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40;
+  }
+  
+  .btn-secondary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold
+           bg-gray-100 text-gray-700 hover:bg-gray-200
+           active:scale-[0.98] transition-all duration-300;
+  }
+  
+  .btn-outline {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold
+           border-2 border-gray-200 text-gray-600 hover:border-primary-500 hover:text-primary-600
+           active:scale-[0.98] transition-all duration-300;
+  }
+  
+  .tab-button {
+    @apply flex items-center gap-2 px-5 py-3 rounded-xl font-medium
+           transition-all duration-300 whitespace-nowrap;
+  }
+  
+  .tab-active {
+    @apply bg-white text-primary-600 shadow-lg shadow-primary-500/20;
+  }
+  
+  .tab-inactive {
+    @apply text-gray-500 hover:text-gray-700 hover:bg-white/50;
+  }
+  
+  .card {
+    @apply bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8
+           border border-white/50;
+  }
+  
+  .qr-container {
+    @apply flex items-center justify-center p-8 bg-white rounded-2xl
+           shadow-inner border-2 border-dashed border-gray-200;
+  }
+}
+
+@layer utilities {
+  .gradient-bg {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6B8DD6 100%);
+  }
+  
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-accent-600;
+  }
+  
+  .pattern-dots {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+  
+  .glass {
+    @apply bg-white/20 backdrop-blur-lg border border-white/30;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+/* Focus visible for accessibility */
+.focus-visible:focus {
+  @apply outline-none ring-4 ring-primary-500/50;
+}
+
+/* Animation for QR code appearance */
+@keyframes qr-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.qr-animate {
+  animation: qr-appear 0.4s ease-out forwards;
+}
+
+/* Smooth transitions for inputs */
+input:focus,
+textarea:focus {
+  transform: translateY(-1px);
+}
+
+/* Gradient border effect */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
