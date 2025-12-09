@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { QrCode, Link, MessageSquare, User, Download, Copy, Check, Trash2, Sparkles, Camera, X } from 'lucide-react';
+import { QrCode, Link, MessageSquare, User, Download, Copy, Check, Trash2, Sparkles, Camera, X, History, Save, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 
 // Constantes
 const TABS = {
@@ -28,6 +28,10 @@ const INITIAL_CONTACT = {
 const PHOTO_MAX_SIZE = 64;
 // Qualité JPEG (0-1)
 const PHOTO_QUALITY = 0.5;
+// Clé localStorage pour l'historique
+const HISTORY_STORAGE_KEY = 'qr-generator-history';
+// Nombre max d'éléments dans l'historique
+const MAX_HISTORY_ITEMS = 50;
 
 function App() {
   // États
@@ -38,6 +42,11 @@ function App() {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // États pour l'historique
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [saved, setSaved] = useState(false);
   
   // Refs
   const canvasRef = useRef(null);
@@ -117,6 +126,124 @@ function App() {
     updateContact('photo', '');
     if (photoInputRef.current) {
       photoInputRef.current.value = '';
+    }
+  };
+
+  // Charger l'historique depuis localStorage au démarrage
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        setHistory(JSON.parse(savedHistory));
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'historique:', error);
+    }
+  }, []);
+
+  // Sauvegarder l'historique dans localStorage
+  const saveHistoryToStorage = (newHistory) => {
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(newHistory));
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de l\'historique:', error);
+    }
+  };
+
+  // Générer un label pour l'élément d'historique
+  const generateLabel = () => {
+    switch (activeTab) {
+      case TABS.URL:
+        return url.length > 30 ? url.substring(0, 30) + '...' : url;
+      case TABS.TEXT:
+        return texte.length > 30 ? texte.substring(0, 30) + '...' : texte;
+      case TABS.CONTACT:
+        const name = `${contact.prenom} ${contact.nom}`.trim();
+        return name || contact.courriel || contact.telephone || 'Contact';
+      default:
+        return 'QR Code';
+    }
+  };
+
+  // Sauvegarder le QR actuel dans l'historique
+  const handleSaveToHistory = () => {
+    if (!qrDataUrl || !getQRData()) return;
+
+    const newItem = {
+      id: Date.now().toString(),
+      type: activeTab,
+      label: generateLabel(),
+      data: activeTab === TABS.URL ? url : activeTab === TABS.TEXT ? texte : { ...contact },
+      qrDataUrl: qrDataUrl,
+      createdAt: new Date().toISOString()
+    };
+
+    const newHistory = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS);
+    setHistory(newHistory);
+    saveHistoryToStorage(newHistory);
+    
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  // Charger un élément de l'historique
+  const handleLoadFromHistory = (item) => {
+    setActiveTab(item.type);
+    
+    switch (item.type) {
+      case TABS.URL:
+        setUrl(item.data);
+        break;
+      case TABS.TEXT:
+        setTexte(item.data);
+        break;
+      case TABS.CONTACT:
+        setContact(item.data);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Supprimer un élément de l'historique
+  const handleDeleteFromHistory = (id, e) => {
+    e.stopPropagation();
+    const newHistory = history.filter(item => item.id !== id);
+    setHistory(newHistory);
+    saveHistoryToStorage(newHistory);
+  };
+
+  // Vider tout l'historique
+  const handleClearHistory = () => {
+    if (window.confirm('Voulez-vous vraiment supprimer tout l\'historique ?')) {
+      setHistory([]);
+      saveHistoryToStorage([]);
+    }
+  };
+
+  // Formater la date
+  const formatDate = (isoString) => {
+    const date = new Date(isoString);
+    return date.toLocaleDateString('fr-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Obtenir l'icône selon le type
+  const getTypeIcon = (type) => {
+    switch (type) {
+      case TABS.URL:
+        return Link;
+      case TABS.TEXT:
+        return MessageSquare;
+      case TABS.CONTACT:
+        return User;
+      default:
+        return QrCode;
     }
   };
 
@@ -530,19 +657,35 @@ function App() {
               </button>
               
               <button
+                onClick={handleSaveToHistory}
+                disabled={!qrDataUrl}
+                className="btn-secondary flex-1 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saved ? (
+                  <>
+                    <Check className="w-5 h-5 text-green-600" />
+                    <span className="text-green-600">Sauvegardé !</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Sauvegarder
+                  </>
+                )}
+              </button>
+              
+              <button
                 onClick={handleCopy}
                 disabled={!hasData}
-                className="btn-secondary flex-1 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {copied ? (
                   <>
                     <Check className="w-5 h-5 text-green-600" />
-                    <span className="text-green-600">Copié !</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-5 h-5" />
-                    Copier
                   </>
                 )}
               </button>
@@ -553,7 +696,6 @@ function App() {
                 className="btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-5 h-5" />
-                Effacer
               </button>
             </div>
           </div>
@@ -616,10 +758,122 @@ function App() {
           </div>
         </div>
 
+        {/* Section Historique */}
+        <div className="mt-8">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="w-full card flex items-center justify-between p-4 hover:bg-white/95 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <History className="w-5 h-5 text-primary-500" />
+              <span className="font-semibold text-gray-800">
+                Historique des codes QR
+              </span>
+              {history.length > 0 && (
+                <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">
+                  {history.length}
+                </span>
+              )}
+            </div>
+            {showHistory ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+
+          {showHistory && (
+            <div className="card mt-2 p-4 animate-fade-in">
+              {history.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
+                    <History className="w-8 h-8 text-gray-300" />
+                  </div>
+                  <p className="text-gray-500 font-medium">Aucun code QR sauvegardé</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Cliquez sur "Sauvegarder" pour ajouter un code à l'historique
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-sm text-gray-500">
+                      {history.length} code{history.length > 1 ? 's' : ''} sauvegardé{history.length > 1 ? 's' : ''}
+                    </p>
+                    <button
+                      onClick={handleClearHistory}
+                      className="text-sm text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Tout effacer
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+                    {history.map((item) => {
+                      const TypeIcon = getTypeIcon(item.type);
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => handleLoadFromHistory(item)}
+                          className="flex items-center gap-4 p-3 bg-gray-50 hover:bg-gray-100 rounded-xl cursor-pointer transition-colors group"
+                        >
+                          {/* Miniature du QR */}
+                          <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex-shrink-0 overflow-hidden">
+                            <img
+                              src={item.qrDataUrl}
+                              alt="QR"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          
+                          {/* Infos */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <TypeIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              <span className="font-medium text-gray-800 truncate">
+                                {item.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {formatDate(item.createdAt)}
+                            </p>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleLoadFromHistory(item);
+                              }}
+                              className="p-2 text-primary-500 hover:bg-primary-50 rounded-lg transition-colors"
+                              title="Charger"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteFromHistory(item.id, e)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Supprimer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Footer info */}
         <div className="mt-12 text-center">
           <p className="text-white/70 text-sm">
-            Généré localement dans votre navigateur • Aucune donnée stockée sur nos serveurs
+            Généré localement dans votre navigateur • Données sauvegardées dans votre navigateur uniquement
           </p>
         </div>
       </main>
