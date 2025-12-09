@@ -706,10 +706,10 @@ function App() {
         <div className="grid lg:grid-cols-2 gap-8">
           
           {/* Panneau de gauche - Formulaire */}
-          <div className={`animate-slide-up rounded-3xl shadow-2xl p-8 border transition-colors duration-500 ${
+          <div className={`animate-slide-up rounded-3xl p-8 border transition-all duration-500 ${
             darkMode 
-              ? 'bg-gray-900/90 backdrop-blur-xl border-gray-700/50' 
-              : 'bg-white/90 backdrop-blur-xl border-white/50'
+              ? 'bg-gray-900/95 backdrop-blur-xl border-gray-700/30 dark-card-shadow dark-glow' 
+              : 'bg-white/90 backdrop-blur-xl border-white/50 shadow-2xl'
           }`}>
             {/* Onglets */}
             <div className={`flex gap-2 p-2 rounded-2xl mb-8 transition-colors duration-500 ${
@@ -804,10 +804,10 @@ function App() {
           </div>
 
           {/* Panneau de droite - QR Code */}
-          <div className={`animate-slide-up flex flex-col rounded-3xl shadow-2xl p-8 border transition-colors duration-500 ${
+          <div className={`animate-slide-up flex flex-col rounded-3xl p-8 border transition-all duration-500 ${
             darkMode 
-              ? 'bg-gray-900/90 backdrop-blur-xl border-gray-700/50' 
-              : 'bg-white/90 backdrop-blur-xl border-white/50'
+              ? 'bg-gray-900/95 backdrop-blur-xl border-gray-700/30 dark-card-shadow dark-glow' 
+              : 'bg-white/90 backdrop-blur-xl border-white/50 shadow-2xl'
           }`} style={{ animationDelay: '0.1s' }}>
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="w-5 h-5 text-primary-500" />
@@ -883,10 +883,10 @@ function App() {
         <div className="mt-8">
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`w-full flex items-center justify-between p-4 rounded-3xl shadow-2xl border transition-all duration-500 ${
+            className={`w-full flex items-center justify-between p-4 rounded-3xl border transition-all duration-500 ${
               darkMode 
-                ? 'bg-gray-900/90 backdrop-blur-xl border-gray-700/50 hover:bg-gray-800/90' 
-                : 'bg-white/90 backdrop-blur-xl border-white/50 hover:bg-white/95'
+                ? 'bg-gray-900/95 backdrop-blur-xl border-gray-700/30 dark-card-shadow hover:bg-gray-800/95' 
+                : 'bg-white/90 backdrop-blur-xl border-white/50 shadow-2xl hover:bg-white/95'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -910,10 +910,10 @@ function App() {
           </button>
 
           {showHistory && (
-            <div className={`mt-2 p-4 animate-fade-in rounded-3xl shadow-2xl border transition-colors duration-500 ${
+            <div className={`mt-2 p-4 animate-fade-in rounded-3xl border transition-all duration-500 ${
               darkMode 
-                ? 'bg-gray-900/90 backdrop-blur-xl border-gray-700/50' 
-                : 'bg-white/90 backdrop-blur-xl border-white/50'
+                ? 'bg-gray-900/95 backdrop-blur-xl border-gray-700/30 dark-card-shadow dark-glow' 
+                : 'bg-white/90 backdrop-blur-xl border-white/50 shadow-2xl'
             }`}>
               {history.length === 0 ? (
                 <div className="text-center py-8">
