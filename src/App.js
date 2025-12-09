@@ -48,6 +48,10 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [saved, setSaved] = useState(false);
   
+  // État pour l'animation de morphing
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showGlow, setShowGlow] = useState(false);
+  
   // Refs
   const canvasRef = useRef(null);
   const qrContainerRef = useRef(null);
@@ -301,6 +305,12 @@ function App() {
       return;
     }
 
+    // Déclencher l'animation de transition si on a déjà un QR
+    const hadPreviousQR = qrDataUrl !== '';
+    if (hadPreviousQR) {
+      setIsTransitioning(true);
+    }
+
     setIsGenerating(true);
 
     try {
@@ -318,8 +328,23 @@ function App() {
           padding: 16
         });
 
-        setQrDataUrl(canvas.toDataURL('image/png'));
+        const newDataUrl = canvas.toDataURL('image/png');
+        
+        // Petit délai pour laisser l'animation de sortie se faire
+        if (hadPreviousQR) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        setQrDataUrl(newDataUrl);
         setIsGenerating(false);
+        
+        // Déclencher l'animation d'entrée et le glow
+        setTimeout(() => {
+          setIsTransitioning(false);
+          setShowGlow(true);
+          setTimeout(() => setShowGlow(false), 500);
+        }, 50);
+        
         return;
       }
     } catch (error) {
@@ -348,12 +373,21 @@ function App() {
         img.onerror = reject;
         img.src = apiUrl;
       });
+      
+      // Animation d'entrée pour le fallback aussi
+      setTimeout(() => {
+        setIsTransitioning(false);
+        setShowGlow(true);
+        setTimeout(() => setShowGlow(false), 500);
+      }, 50);
+      
     } catch (error) {
       console.error('API QR generation failed:', error);
       setQrDataUrl('');
     }
 
     setIsGenerating(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Effet pour régénérer le QR quand les données changent
@@ -716,17 +750,19 @@ function App() {
               {/* Canvas caché pour QRious */}
               <canvas ref={canvasRef} className="hidden" />
 
-              {isGenerating ? (
+              {isGenerating && !qrDataUrl ? (
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
                   <p className="text-gray-500">Génération en cours...</p>
                 </div>
               ) : qrDataUrl ? (
-                <div className="qr-animate">
+                <div className={`qr-crossfade ${showGlow ? 'qr-glow' : ''}`}>
                   <img
                     src={qrDataUrl}
                     alt="Code QR généré"
-                    className="max-w-full h-auto rounded-lg shadow-lg"
+                    className={`max-w-full h-auto rounded-lg shadow-lg qr-morph ${
+                      isTransitioning ? 'qr-morph-enter' : 'qr-morph-active'
+                    } ${isGenerating ? 'qr-generating' : ''}`}
                   />
                 </div>
               ) : (

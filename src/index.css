@@ -125,6 +125,67 @@
   animation: qr-appear 0.4s ease-out forwards;
 }
 
+/* Morphing animation for QR code transitions */
+.qr-morph {
+  transition: opacity 0.25s ease-out, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease-out;
+  will-change: opacity, transform, filter;
+}
+
+.qr-morph-enter {
+  opacity: 0.4;
+  transform: scale(0.92);
+  filter: blur(4px);
+}
+
+.qr-morph-active {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);
+}
+
+/* Subtle pulse effect when QR is generating */
+@keyframes qr-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+.qr-generating {
+  animation: qr-pulse 0.6s ease-in-out infinite;
+}
+
+/* Smooth crossfade container */
+.qr-crossfade {
+  position: relative;
+  overflow: hidden;
+}
+
+.qr-crossfade img {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glow effect on change */
+@keyframes qr-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px rgba(139, 92, 246, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+}
+
+.qr-glow {
+  animation: qr-glow 0.5s ease-out;
+}
+
 /* Smooth transitions for inputs */
 input:focus,
 textarea:focus {
