@@ -228,11 +228,16 @@
 /* Smooth crossfade container */
 .qr-crossfade {
   position: relative;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .qr-crossfade img {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block;
+  margin: 0 auto;
 }
 
 /* Glow effect on change */
@@ -256,6 +261,31 @@
 input:focus,
 textarea:focus {
   transform: translateY(-1px);
+}
+
+/* Color picker styling */
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+input[type="color"]::-moz-color-swatch {
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
 }
 
 /* Gradient border effect */

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { QrCode, Link, MessageSquare, User, Download, Copy, Check, Trash2, Sparkles, Camera, X, History, Save, ChevronDown, ChevronUp, RotateCcw, Moon, Sun } from 'lucide-react';
+import { QrCode, Link, MessageSquare, User, Copy, Check, Trash2, Sparkles, Camera, X, History, Save, ChevronDown, ChevronUp, RotateCcw, Moon, Sun, Palette, FileImage, FileCode, Image, Circle, Square, RectangleHorizontal } from 'lucide-react';
+import QRCodeLib from 'qrcode';
+import QRCodeStyling from 'qr-code-styling';
 
 // Constantes
 const TABS = {
@@ -32,8 +34,55 @@ const PHOTO_QUALITY = 0.5;
 const HISTORY_STORAGE_KEY = 'qr-generator-history';
 // Clé localStorage pour le thème
 const THEME_STORAGE_KEY = 'qr-generator-theme';
+// Clé localStorage pour les couleurs QR
+const COLORS_STORAGE_KEY = 'qr-generator-colors';
 // Nombre max d'éléments dans l'historique
 const MAX_HISTORY_ITEMS = 50;
+// Couleurs par défaut
+const DEFAULT_COLORS = {
+  foreground: '#1f2937',
+  background: '#ffffff'
+};
+// Presets de couleurs populaires
+const COLOR_PRESETS = [
+  { name: 'Classique', foreground: '#1f2937', background: '#ffffff' },
+  { name: 'Noir & Blanc', foreground: '#000000', background: '#ffffff' },
+  { name: 'Bleu', foreground: '#1e40af', background: '#dbeafe' },
+  { name: 'Violet', foreground: '#7c3aed', background: '#f5f3ff' },
+  { name: 'Vert', foreground: '#166534', background: '#dcfce7' },
+  { name: 'Rouge', foreground: '#991b1b', background: '#fee2e2' },
+  { name: 'Orange', foreground: '#c2410c', background: '#fff7ed' },
+  { name: 'Inversé', foreground: '#ffffff', background: '#1f2937' },
+];
+
+// Options de style pour les points du QR
+const DOT_STYLES = [
+  { id: 'square', name: 'Carré', icon: Square },
+  { id: 'dots', name: 'Rond', icon: Circle },
+  { id: 'rounded', name: 'Arrondi', icon: RectangleHorizontal },
+  { id: 'extra-rounded', name: 'Très arrondi', icon: Circle },
+  { id: 'classy', name: 'Classique', icon: Square },
+  { id: 'classy-rounded', name: 'Classique arrondi', icon: RectangleHorizontal },
+];
+
+// Options de style pour les coins (les 3 grands carrés)
+const CORNER_STYLES = [
+  { id: 'square', name: 'Carré' },
+  { id: 'dot', name: 'Rond' },
+  { id: 'extra-rounded', name: 'Très arrondi' },
+];
+
+// Clé localStorage pour les options de style
+const STYLE_STORAGE_KEY = 'qr-generator-style';
+
+// Style par défaut
+const DEFAULT_STYLE = {
+  dotType: 'square',
+  cornerSquareType: 'square',
+  cornerDotType: 'square',
+  logo: null,
+  logoSize: 0.3, // 30% de la taille du QR
+};
 
 function App() {
   // États
@@ -53,6 +102,43 @@ function App() {
   // État pour l'animation de morphing
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showGlow, setShowGlow] = useState(false);
+  
+  // États pour les couleurs du QR
+  const [qrColors, setQrColors] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(COLORS_STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return DEFAULT_COLORS;
+        }
+      }
+    }
+    return DEFAULT_COLORS;
+  });
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  
+  // État pour le SVG
+  const [qrSvgString, setQrSvgString] = useState('');
+  
+  // États pour les options de style avancées
+  const [qrStyle, setQrStyle] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STYLE_STORAGE_KEY);
+      if (saved) {
+        try {
+          return { ...DEFAULT_STYLE, ...JSON.parse(saved) };
+        } catch (e) {
+          return DEFAULT_STYLE;
+        }
+      }
+    }
+    return DEFAULT_STYLE;
+  });
+  
+  // Ref pour QRCodeStyling
+  const qrCodeStylingRef = useRef(null);
   
   // État pour le mode sombre
   const [darkMode, setDarkMode] = useState(() => {
@@ -165,6 +251,17 @@ function App() {
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, darkMode ? 'dark' : 'light');
   }, [darkMode]);
+
+  // Sauvegarder les couleurs dans localStorage
+  useEffect(() => {
+    localStorage.setItem(COLORS_STORAGE_KEY, JSON.stringify(qrColors));
+  }, [qrColors]);
+
+  // Sauvegarder les options de style dans localStorage
+  useEffect(() => {
+    const styleToSave = { ...qrStyle, logo: null }; // Ne pas sauvegarder le logo
+    localStorage.setItem(STYLE_STORAGE_KEY, JSON.stringify(styleToSave));
+  }, [qrStyle]);
 
   // Basculer le mode sombre
   const toggleDarkMode = () => {
@@ -324,10 +421,11 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, url, texte, contact]);
 
-  // Génération QR avec QRious (priorité) ou API fallback
-  const generateQR = useCallback(async (data) => {
+  // Génération QR avec QRCodeStyling (stylisé) et qrcode (SVG simple)
+  const generateQR = useCallback(async (data, colors, style) => {
     if (!data) {
       setQrDataUrl('');
+      setQrSvgString('');
       return;
     }
 
@@ -339,101 +437,193 @@ function App() {
 
     setIsGenerating(true);
 
-    try {
-      // Essayer QRious d'abord (chargé via CDN)
-      if (window.QRious) {
-        const canvas = canvasRef.current || document.createElement('canvas');
-        
-        new window.QRious({
-          element: canvas,
-          value: data,
-          size: 280,
-          level: 'H', // Haute correction d'erreur
-          background: '#ffffff',
-          foreground: '#1f2937',
-          padding: 16
-        });
+    const { foreground, background } = colors;
+    const { dotType, cornerSquareType, cornerDotType, logo, logoSize } = style;
 
-        const newDataUrl = canvas.toDataURL('image/png');
-        
-        // Petit délai pour laisser l'animation de sortie se faire
-        if (hadPreviousQR) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        setQrDataUrl(newDataUrl);
-        setIsGenerating(false);
-        
-        // Déclencher l'animation d'entrée et le glow
-        setTimeout(() => {
-          setIsTransitioning(false);
-          setShowGlow(true);
-          setTimeout(() => setShowGlow(false), 500);
-        }, 50);
-        
-        return;
+    // Configuration pour QRCodeStyling
+    const qrOptions = {
+      width: 280,
+      height: 280,
+      data: data,
+      margin: 8,
+      qrOptions: {
+        errorCorrectionLevel: 'H'
+      },
+      dotsOptions: {
+        color: foreground,
+        type: dotType
+      },
+      backgroundOptions: {
+        color: background
+      },
+      cornersSquareOptions: {
+        color: foreground,
+        type: cornerSquareType
+      },
+      cornersDotOptions: {
+        color: foreground,
+        type: cornerDotType
       }
-    } catch (error) {
-      console.warn('QRious failed, falling back to API:', error);
+    };
+
+    // Ajouter le logo si présent
+    if (logo) {
+      qrOptions.image = logo;
+      qrOptions.imageOptions = {
+        crossOrigin: 'anonymous',
+        margin: 4,
+        imageSize: logoSize,
+        hideBackgroundDots: true
+      };
     }
 
-    // Fallback vers l'API
     try {
-      const encodedData = encodeURIComponent(data);
-      const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodedData}&ecc=H`;
+      // Créer ou mettre à jour l'instance QRCodeStyling
+      if (!qrCodeStylingRef.current) {
+        qrCodeStylingRef.current = new QRCodeStyling(qrOptions);
+      } else {
+        qrCodeStylingRef.current.update(qrOptions);
+      }
+
+      // Générer le PNG
+      const pngBlob = await qrCodeStylingRef.current.getRawData('png');
+      const pngUrl = URL.createObjectURL(pngBlob);
       
-      // Vérifier que l'image se charge correctement
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Petit délai pour l'animation
+      if (hadPreviousQR) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
-      await new Promise((resolve, reject) => {
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          setQrDataUrl(canvas.toDataURL('image/png'));
-          resolve();
-        };
-        img.onerror = reject;
-        img.src = apiUrl;
-      });
+      setQrDataUrl(pngUrl);
+
+      // Générer le SVG
+      const svgBlob = await qrCodeStylingRef.current.getRawData('svg');
+      const svgText = await svgBlob.text();
+      setQrSvgString(svgText);
+
+      setIsGenerating(false);
       
-      // Animation d'entrée pour le fallback aussi
+      // Déclencher l'animation d'entrée et le glow
       setTimeout(() => {
         setIsTransitioning(false);
         setShowGlow(true);
         setTimeout(() => setShowGlow(false), 500);
       }, 50);
-      
-    } catch (error) {
-      console.error('API QR generation failed:', error);
-      setQrDataUrl('');
-    }
 
-    setIsGenerating(false);
+    } catch (error) {
+      console.error('QRCodeStyling generation failed:', error);
+      
+      // Fallback vers la génération simple avec qrcode
+      try {
+        const svgString = await QRCodeLib.toString(data, {
+          type: 'svg',
+          errorCorrectionLevel: 'H',
+          margin: 2,
+          width: 280,
+          color: {
+            dark: foreground,
+            light: background
+          }
+        });
+        setQrSvgString(svgString);
+        
+        // Créer un data URL à partir du SVG
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(svgBlob);
+        setQrDataUrl(url);
+      } catch (fallbackError) {
+        console.error('Fallback generation failed:', fallbackError);
+        setQrDataUrl('');
+        setQrSvgString('');
+      }
+      
+      setIsGenerating(false);
+      setIsTransitioning(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Effet pour régénérer le QR quand les données changent
+  // Effet pour régénérer le QR quand les données, couleurs ou style changent
   useEffect(() => {
     const data = getQRData();
     const timeoutId = setTimeout(() => {
-      generateQR(data);
+      generateQR(data, qrColors, qrStyle);
     }, 300); // Debounce de 300ms
 
     return () => clearTimeout(timeoutId);
-  }, [getQRData, generateQR]);
+  }, [getQRData, generateQR, qrColors, qrStyle]);
 
-  // Téléchargement du QR
-  const handleDownload = () => {
+  // Téléchargement du QR en PNG
+  const handleDownloadPng = () => {
     if (!qrDataUrl) return;
 
     const link = document.createElement('a');
     link.download = `qr-code-${activeTab}-${Date.now()}.png`;
     link.href = qrDataUrl;
     link.click();
+  };
+
+  // Téléchargement du QR en SVG
+  const handleDownloadSvg = () => {
+    if (!qrSvgString) return;
+
+    const blob = new Blob([qrSvgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `qr-code-${activeTab}-${Date.now()}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Fonction pour mettre à jour les couleurs
+  const updateColors = (key, value) => {
+    setQrColors(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Appliquer un preset de couleur
+  const applyColorPreset = (preset) => {
+    setQrColors({
+      foreground: preset.foreground,
+      background: preset.background
+    });
+  };
+
+  // Réinitialiser les couleurs
+  const resetColors = () => {
+    setQrColors(DEFAULT_COLORS);
+  };
+
+  // Mettre à jour le style
+  const updateStyle = (key, value) => {
+    setQrStyle(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Gérer l'upload du logo
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Veuillez sélectionner une image');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      updateStyle('logo', event.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Supprimer le logo
+  const removeLogo = () => {
+    updateStyle('logo', null);
+  };
+
+  // Réinitialiser le style
+  const resetStyle = () => {
+    setQrStyle(DEFAULT_STYLE);
   };
 
   // Copie des données dans le presse-papier
@@ -669,44 +859,37 @@ function App() {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'dark-mode gradient-bg-dark' : 'gradient-bg'} pattern-dots`}>
-      {/* Header */}
-      <header className="pt-12 pb-8 px-4 text-center relative">
-        {/* Bouton mode sombre - discret en haut à droite */}
-        <button
-          onClick={toggleDarkMode}
-          className={`absolute top-4 right-4 p-2.5 rounded-xl transition-all duration-300 ${
-            darkMode 
-              ? 'bg-white/10 hover:bg-white/20 text-yellow-300' 
-              : 'bg-white/20 hover:bg-white/30 text-white'
-          }`}
-          title={darkMode ? 'Mode jour' : 'Mode nuit'}
-        >
-          {darkMode ? (
-            <Sun className="w-5 h-5" />
-          ) : (
-            <Moon className="w-5 h-5" />
-          )}
-        </button>
-
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl">
-            <QrCode className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white">
-            Générateur QR
-          </h1>
-        </div>
-        <p className="text-white/80 text-lg max-w-md mx-auto">
-          Créez des codes QR instantanément pour vos liens, textes et contacts
-        </p>
-      </header>
+      {/* Bouton mode sombre - discret en haut à droite */}
+      <button
+        onClick={toggleDarkMode}
+        className={`fixed top-4 right-4 p-2.5 rounded-xl transition-all duration-300 z-50 ${
+          darkMode 
+            ? 'bg-white/10 hover:bg-white/20 text-yellow-300' 
+            : 'bg-white/20 hover:bg-white/30 text-white'
+        }`}
+        title={darkMode ? 'Mode jour' : 'Mode nuit'}
+      >
+        {darkMode ? (
+          <Sun className="w-5 h-5" />
+        ) : (
+          <Moon className="w-5 h-5" />
+        )}
+      </button>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 pb-12 max-w-6xl">
+      <main className="container mx-auto px-4 pt-8 pb-12 max-w-6xl">
         <div className="grid lg:grid-cols-2 gap-8">
           
-          {/* Panneau de gauche - Formulaire */}
-          <div className={`animate-slide-up rounded-3xl p-8 border transition-all duration-500 ${
+          <div className="flex flex-col gap-4">
+            {/* Logo Massive */}
+            <img 
+              src="/logo-massive.svg" 
+              alt="Massive" 
+              className="h-12 md:h-14 w-auto self-start"
+            />
+            
+            {/* Panneau de gauche - Formulaire */}
+            <div className={`animate-slide-up rounded-3xl p-8 border transition-all duration-500 ${
             darkMode 
               ? 'bg-gray-900/95 backdrop-blur-xl border-gray-700/30 dark-card-shadow dark-glow' 
               : 'bg-white/90 backdrop-blur-xl border-white/50 shadow-2xl'
@@ -740,15 +923,325 @@ function App() {
               {renderForm()}
             </div>
 
+            {/* Sélecteur de couleurs */}
+            <div className="mb-6">
+              <button
+                onClick={() => setShowColorPicker(!showColorPicker)}
+                className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600' 
+                    : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Palette className="w-5 h-5 text-primary-500" />
+                  <span className={`font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    Personnaliser les couleurs
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: qrColors.foreground }}
+                  />
+                  <div 
+                    className="w-6 h-6 rounded-full border-2 border-gray-300 shadow-sm"
+                    style={{ backgroundColor: qrColors.background }}
+                  />
+                  {showColorPicker ? (
+                    <ChevronUp className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                  ) : (
+                    <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                  )}
+                </div>
+              </button>
+              
+              {showColorPicker && (
+                <div className={`mt-3 p-4 rounded-xl border animate-fade-in ${
+                  darkMode 
+                    ? 'bg-gray-800/80 border-gray-700' 
+                    : 'bg-white border-gray-200'
+                }`}>
+                  {/* Sélecteurs de couleur */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <label className="block">
+                      <span className={`text-sm font-medium mb-2 block ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Premier plan
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={qrColors.foreground}
+                          onChange={(e) => updateColors('foreground', e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border-0"
+                        />
+                        <input
+                          type="text"
+                          value={qrColors.foreground}
+                          onChange={(e) => updateColors('foreground', e.target.value)}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-mono uppercase ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                              : 'bg-gray-50 border-gray-200 text-gray-700'
+                          } border`}
+                        />
+                      </div>
+                    </label>
+                    <label className="block">
+                      <span className={`text-sm font-medium mb-2 block ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Arrière-plan
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={qrColors.background}
+                          onChange={(e) => updateColors('background', e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border-0"
+                        />
+                        <input
+                          type="text"
+                          value={qrColors.background}
+                          onChange={(e) => updateColors('background', e.target.value)}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-mono uppercase ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                              : 'bg-gray-50 border-gray-200 text-gray-700'
+                          } border`}
+                        />
+                      </div>
+                    </label>
+                  </div>
+                  
+                  {/* Presets de couleurs */}
+                  <div className="mb-3">
+                    <span className={`text-xs font-medium uppercase tracking-wide mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Presets
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {COLOR_PRESETS.map((preset) => (
+                        <button
+                          key={preset.name}
+                          onClick={() => applyColorPreset(preset)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            qrColors.foreground === preset.foreground && qrColors.background === preset.background
+                              ? 'ring-2 ring-primary-500 ring-offset-1'
+                              : ''
+                          } ${
+                            darkMode 
+                              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                          title={preset.name}
+                        >
+                          <div className="flex">
+                            <div 
+                              className="w-4 h-4 rounded-l border border-r-0 border-gray-400"
+                              style={{ backgroundColor: preset.foreground }}
+                            />
+                            <div 
+                              className="w-4 h-4 rounded-r border border-gray-400"
+                              style={{ backgroundColor: preset.background }}
+                            />
+                          </div>
+                          <span>{preset.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Bouton réinitialiser */}
+                  <button
+                    onClick={resetColors}
+                    className={`text-sm flex items-center gap-1 transition-colors ${
+                      darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Réinitialiser
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Options de style avancées */}
+            <div className="mb-6">
+              <div className={`p-4 rounded-xl border ${
+                darkMode 
+                  ? 'bg-gray-800/50 border-gray-700' 
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-5 h-5 text-primary-500" />
+                  <span className={`font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    Style du QR Code
+                  </span>
+                </div>
+
+                {/* Style des points */}
+                <div className="mb-4">
+                  <span className={`text-xs font-medium uppercase tracking-wide mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Forme des points
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {DOT_STYLES.map((style) => {
+                      const IconComponent = style.icon;
+                      return (
+                        <button
+                          key={style.id}
+                          onClick={() => updateStyle('dotType', style.id)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                            qrStyle.dotType === style.id
+                              ? 'ring-2 ring-primary-500 bg-primary-500/20 text-primary-500'
+                              : darkMode 
+                                ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                                : 'bg-white hover:bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          <IconComponent className="w-4 h-4" />
+                          <span className="hidden sm:inline">{style.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Style des coins */}
+                <div className="mb-4">
+                  <span className={`text-xs font-medium uppercase tracking-wide mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Forme des coins
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {CORNER_STYLES.map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() => {
+                          updateStyle('cornerSquareType', style.id);
+                          updateStyle('cornerDotType', style.id === 'dot' ? 'dot' : 'square');
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          qrStyle.cornerSquareType === style.id
+                            ? 'ring-2 ring-primary-500 bg-primary-500/20 text-primary-500'
+                            : darkMode 
+                              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                              : 'bg-white hover:bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {style.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Logo au centre */}
+                <div className="mb-3">
+                  <span className={`text-xs font-medium uppercase tracking-wide mb-2 block ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Logo au centre
+                  </span>
+                  <div className="flex items-center gap-3">
+                    {qrStyle.logo ? (
+                      <div className="relative">
+                        <img
+                          src={qrStyle.logo}
+                          alt="Logo"
+                          className="w-12 h-12 rounded-lg object-contain border-2 border-primary-200"
+                        />
+                        <button
+                          onClick={removeLogo}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={`w-12 h-12 rounded-lg border-2 border-dashed flex items-center justify-center ${
+                        darkMode ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-100'
+                      }`}>
+                        <Image className={`w-5 h-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                      </div>
+                    )}
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        id="logo-upload"
+                      />
+                      <label
+                        htmlFor="logo-upload"
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium transition-colors ${
+                          darkMode 
+                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                            : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'
+                        }`}
+                      >
+                        <Image className="w-4 h-4" />
+                        {qrStyle.logo ? 'Changer' : 'Ajouter un logo'}
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Slider pour la taille du logo */}
+                  {qrStyle.logo && (
+                    <div className="mt-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Taille du logo
+                        </span>
+                        <span className={`text-xs font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {Math.round(qrStyle.logoSize * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="0.5"
+                        step="0.05"
+                        value={qrStyle.logoSize}
+                        onChange={(e) => updateStyle('logoSize', parseFloat(e.target.value))}
+                        className="w-full accent-primary-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Bouton réinitialiser le style */}
+                <button
+                  onClick={resetStyle}
+                  className={`text-sm flex items-center gap-1 transition-colors ${
+                    darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Style par défaut
+                </button>
+              </div>
+            </div>
+
             {/* Boutons d'action */}
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={handleDownload}
+                onClick={handleDownloadPng}
                 disabled={!qrDataUrl}
-                className="btn-primary flex-1 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary flex-1 min-w-[120px] disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Télécharger en PNG"
               >
-                <Download className="w-5 h-5" />
-                Télécharger
+                <FileImage className="w-5 h-5" />
+                PNG
+              </button>
+              
+              <button
+                onClick={handleDownloadSvg}
+                disabled={!qrSvgString}
+                className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold flex-1 min-w-[120px] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-500/30' 
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-500/30'
+                }`}
+                title="Télécharger en SVG (vectoriel, couleurs modifiables)"
+              >
+                <FileCode className="w-5 h-5" />
+                SVG
               </button>
               
               <button
@@ -802,6 +1295,7 @@ function App() {
               </button>
             </div>
           </div>
+          </div>
 
           {/* Panneau de droite - QR Code */}
           <div className={`animate-slide-up flex flex-col rounded-3xl p-8 border transition-all duration-500 ${
@@ -816,30 +1310,34 @@ function App() {
               </h2>
             </div>
 
+            {/* Canvas caché pour QRious - hors du flux */}
+            <canvas ref={canvasRef} className="hidden absolute" />
+            
             <div 
               ref={qrContainerRef}
-              className={`flex items-center justify-center p-8 rounded-2xl flex-1 min-h-[320px] relative transition-colors duration-500 ${
+              className={`grid place-items-center p-8 rounded-2xl flex-1 min-h-[320px] transition-colors duration-500 ${
                 darkMode 
                   ? 'bg-gray-800 shadow-inner border-2 border-dashed border-gray-600' 
                   : 'bg-white shadow-inner border-2 border-dashed border-gray-200'
               }`}
             >
-              {/* Canvas caché pour QRious */}
-              <canvas ref={canvasRef} className="hidden" />
-
               {isGenerating && !qrDataUrl ? (
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
                   <p className="text-gray-500">Génération en cours...</p>
                 </div>
               ) : qrDataUrl ? (
-                <div className={`qr-crossfade ${showGlow ? 'qr-glow' : ''}`}>
+                <div 
+                  className={`p-4 rounded-lg shadow-lg ${showGlow ? 'qr-glow' : ''}`}
+                  style={{ backgroundColor: qrColors.background }}
+                >
                   <img
                     src={qrDataUrl}
                     alt="Code QR généré"
-                    className={`max-w-full h-auto rounded-lg shadow-lg qr-morph ${
+                    className={`qr-morph block ${
                       isTransitioning ? 'qr-morph-enter' : 'qr-morph-active'
                     } ${isGenerating ? 'qr-generating' : ''}`}
+                    style={{ width: '248px', height: '248px' }}
                   />
                 </div>
               ) : (
