@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { QrCode, Link, MessageSquare, User, Copy, Check, Trash2, Sparkles, Camera, X, History, Save, ChevronDown, ChevronUp, RotateCcw, Moon, Sun, Palette, FileImage, FileCode, Image, Circle, Square, RectangleHorizontal } from 'lucide-react';
+import { QrCode, Link, MessageSquare, User, Copy, Check, Trash2, Sparkles, Camera, X, History, Save, ChevronDown, ChevronUp, RotateCcw, Moon, Sun, Palette, FileImage, FileCode, Image, Circle, Square, RectangleHorizontal, Scissors, ExternalLink, BarChart3, Loader2 } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import QRCodeStyling from 'qr-code-styling';
 
@@ -7,14 +7,22 @@ import QRCodeStyling from 'qr-code-styling';
 const TABS = {
   URL: 'url',
   TEXT: 'texte',
-  CONTACT: 'contact'
+  CONTACT: 'contact',
+  SHORTENER: 'shortener'
 };
 
 const TAB_CONFIG = [
   { id: TABS.URL, label: 'URL', icon: Link },
   { id: TABS.TEXT, label: 'Texte', icon: MessageSquare },
-  { id: TABS.CONTACT, label: 'Contact', icon: User }
+  { id: TABS.CONTACT, label: 'Contact', icon: User },
+  { id: TABS.SHORTENER, label: 'Raccourcir', icon: Scissors }
 ];
+
+// Configuration API Shortener
+const SHORTENER_API = {
+  BASE_URL: 'https://massivemedias.com',
+  API_KEY: 'massive-secret-2024-change-me' // Doit correspondre au Worker
+};
 
 const INITIAL_CONTACT = {
   prenom: '',
@@ -98,6 +106,15 @@ function App() {
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [saved, setSaved] = useState(false);
+  
+  // États pour le URL Shortener
+  const [shortenerUrl, setShortenerUrl] = useState('');
+  const [shortenerCustomCode, setShortenerCustomCode] = useState('');
+  const [shortenerResult, setShortenerResult] = useState(null);
+  const [shortenerLoading, setShortenerLoading] = useState(false);
+  const [shortenerError, setShortenerError] = useState('');
+  const [shortenerStats, setShortenerStats] = useState(null);
+  const [shortenerCopied, setShortenerCopied] = useState(false);
   
   // État pour l'animation de morphing
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -626,6 +643,109 @@ function App() {
     setQrStyle(DEFAULT_STYLE);
   };
 
+  // ============================================
+  // FONCTIONS URL SHORTENER
+  // ============================================
+  
+  // Créer un lien court
+  const handleCreateShortUrl = async () => {
+    if (!shortenerUrl) {
+      setShortenerError('Veuillez entrer une URL');
+      return;
+    }
+
+    // Valider l'URL
+    let urlToShorten = shortenerUrl.trim();
+    if (!urlToShorten.match(/^https?:\/\//i)) {
+      urlToShorten = `https://${urlToShorten}`;
+    }
+
+    try {
+      new URL(urlToShorten);
+    } catch {
+      setShortenerError('URL invalide');
+      return;
+    }
+
+    setShortenerLoading(true);
+    setShortenerError('');
+    setShortenerResult(null);
+
+    try {
+      const response = await fetch(`${SHORTENER_API.BASE_URL}/api/shorten`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': SHORTENER_API.API_KEY
+        },
+        body: JSON.stringify({
+          longUrl: urlToShorten,
+          customCode: shortenerCustomCode || undefined
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la création');
+      }
+
+      setShortenerResult(data);
+      setShortenerError('');
+      
+      // Charger les stats
+      fetchShortenerStats(data.shortCode);
+      
+    } catch (error) {
+      console.error('Shortener error:', error);
+      setShortenerError(error.message || 'Erreur de connexion au serveur');
+    } finally {
+      setShortenerLoading(false);
+    }
+  };
+
+  // Récupérer les stats d'un lien
+  const fetchShortenerStats = async (code) => {
+    try {
+      const response = await fetch(`${SHORTENER_API.BASE_URL}/api/stats/${code}`);
+      if (response.ok) {
+        const data = await response.json();
+        setShortenerStats(data);
+      }
+    } catch (error) {
+      console.error('Stats fetch error:', error);
+    }
+  };
+
+  // Copier le lien court
+  const handleCopyShortUrl = async () => {
+    if (!shortenerResult?.shortUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(shortenerResult.shortUrl);
+      setShortenerCopied(true);
+      setTimeout(() => setShortenerCopied(false), 2000);
+    } catch (error) {
+      console.error('Copy error:', error);
+    }
+  };
+
+  // Utiliser le lien court pour générer un QR
+  const handleUseShortUrlForQR = () => {
+    if (!shortenerResult?.shortUrl) return;
+    setActiveTab(TABS.URL);
+    setUrl(shortenerResult.shortUrl);
+  };
+
+  // Réinitialiser le shortener
+  const handleResetShortener = () => {
+    setShortenerUrl('');
+    setShortenerCustomCode('');
+    setShortenerResult(null);
+    setShortenerError('');
+    setShortenerStats(null);
+  };
+
   // Copie des données dans le presse-papier
   const handleCopy = async () => {
     const data = getQRData();
@@ -850,6 +970,167 @@ function App() {
           </div>
         );
 
+      case TABS.SHORTENER:
+        return (
+          <div className="space-y-4 animate-fade-in">
+            {/* Input URL longue */}
+            <label className="block">
+              <span className={`text-sm font-medium mb-2 block transition-colors duration-500 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                URL à raccourcir
+              </span>
+              <div className="relative">
+                <Link className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                <input
+                  type="url"
+                  value={shortenerUrl}
+                  onChange={(e) => setShortenerUrl(e.target.value)}
+                  placeholder="https://exemple.com/une-tres-longue-url"
+                  className="input-field pl-12"
+                  disabled={shortenerLoading}
+                />
+              </div>
+            </label>
+
+            {/* Code personnalisé (optionnel) */}
+            <label className="block">
+              <span className={`text-sm font-medium mb-2 block transition-colors duration-500 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Code personnalisé <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>(optionnel)</span>
+              </span>
+              <div className="relative">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  massivemedias.com/
+                </span>
+                <input
+                  type="text"
+                  value={shortenerCustomCode}
+                  onChange={(e) => setShortenerCustomCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="mon-lien"
+                  className="input-field pl-40"
+                  maxLength={30}
+                  disabled={shortenerLoading}
+                />
+              </div>
+              <p className={`text-xs mt-1 transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                Laissez vide pour un code auto-généré
+              </p>
+            </label>
+
+            {/* Bouton Raccourcir */}
+            <button
+              onClick={handleCreateShortUrl}
+              disabled={!shortenerUrl || shortenerLoading}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {shortenerLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Création...
+                </>
+              ) : (
+                <>
+                  <Scissors className="w-5 h-5" />
+                  Raccourcir l'URL
+                </>
+              )}
+            </button>
+
+            {/* Message d'erreur */}
+            {shortenerError && (
+              <div className="p-3 rounded-xl bg-red-100 text-red-700 text-sm">
+                ⚠️ {shortenerError}
+              </div>
+            )}
+
+            {/* Résultat */}
+            {shortenerResult && (
+              <div className={`p-4 rounded-xl border-2 transition-colors duration-500 ${
+                darkMode 
+                  ? 'bg-green-900/30 border-green-700' 
+                  : 'bg-green-50 border-green-200'
+              }`}>
+                <p className={`text-sm font-medium mb-2 ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
+                  ✅ Lien créé avec succès !
+                </p>
+                
+                {/* Lien court */}
+                <div className={`flex items-center gap-2 p-3 rounded-lg mb-3 ${
+                  darkMode ? 'bg-gray-800' : 'bg-white'
+                }`}>
+                  <a 
+                    href={shortenerResult.shortUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex-1 font-mono text-primary-500 hover:underline truncate"
+                  >
+                    {shortenerResult.shortUrl}
+                  </a>
+                  <button
+                    onClick={handleCopyShortUrl}
+                    className={`p-2 rounded-lg transition-colors ${
+                      darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
+                    title="Copier"
+                  >
+                    {shortenerCopied ? (
+                      <Check className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <Copy className="w-5 h-5" />
+                    )}
+                  </button>
+                  <a
+                    href={shortenerResult.shortUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`p-2 rounded-lg transition-colors ${
+                      darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
+                    title="Ouvrir"
+                  >
+                    <ExternalLink className="w-5 h-5" />
+                  </a>
+                </div>
+
+                {/* Stats */}
+                {shortenerStats && (
+                  <div className={`flex items-center gap-4 text-sm mb-3 ${
+                    darkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    <span className="flex items-center gap-1">
+                      <BarChart3 className="w-4 h-4" />
+                      {shortenerStats.clicks} clic{shortenerStats.clicks !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleUseShortUrlForQR}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      darkMode 
+                        ? 'bg-primary-600 hover:bg-primary-700 text-white' 
+                        : 'bg-primary-500 hover:bg-primary-600 text-white'
+                    }`}
+                  >
+                    <QrCode className="w-4 h-4" />
+                    Créer un QR Code
+                  </button>
+                  <button
+                    onClick={handleResetShortener}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      darkMode 
+                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    }`}
+                  >
+                    Nouveau
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
@@ -919,10 +1200,13 @@ function App() {
             </div>
 
             {/* Formulaire */}
-            <div className="mb-8">
+            <div className={activeTab !== TABS.SHORTENER ? "mb-8" : ""}>
               {renderForm()}
             </div>
 
+            {/* Options QR (masquées pour Shortener) */}
+            {activeTab !== TABS.SHORTENER && (
+            <>
             {/* Sélecteur de couleurs */}
             <div className="mb-6">
               <button
@@ -1294,6 +1578,8 @@ function App() {
                 <Trash2 className="w-5 h-5" />
               </button>
             </div>
+            </>
+            )}
           </div>
           </div>
 
