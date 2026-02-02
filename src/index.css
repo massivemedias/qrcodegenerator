@@ -50,7 +50,7 @@
   }
   
   .tab-button {
-    @apply flex items-center gap-2 px-5 py-3 rounded-xl font-medium
+    @apply flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium
            transition-all duration-300 whitespace-nowrap;
   }
   

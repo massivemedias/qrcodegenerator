@@ -15,7 +15,7 @@ const TAB_CONFIG = [
   { id: TABS.URL, label: 'URL', icon: Link },
   { id: TABS.TEXT, label: 'Texte', icon: MessageSquare },
   { id: TABS.CONTACT, label: 'Contact', icon: User },
-  { id: TABS.SHORTENER, label: 'Raccourcir', icon: Scissors }
+  { id: TABS.SHORTENER, label: 'Short', icon: Scissors }
 ];
 
 // Configuration API Shortener
@@ -159,16 +159,14 @@ function App() {
   
   // État pour le mode sombre
   const [darkMode, setDarkMode] = useState(() => {
-    // Initialiser depuis localStorage ou préférence système
+    // Initialiser depuis localStorage ou mode sombre par défaut
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(THEME_STORAGE_KEY);
       if (saved !== null) {
         return saved === 'dark';
       }
-      // Vérifier la préférence système
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
-    return false;
+    return true; // Mode sombre par défaut
   });
   
   // Refs
@@ -1183,7 +1181,7 @@ function App() {
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
-                  className={`tab-button flex-1 transition-all duration-300 ${
+                  className={`tab-button flex-1 transition-all duration-300 text-sm ${
                     activeTab === id 
                       ? darkMode 
                         ? 'bg-gray-700 text-primary-400 shadow-lg shadow-primary-500/20' 
@@ -1193,7 +1191,7 @@ function App() {
                         : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{label}</span>
                 </button>
               ))}
